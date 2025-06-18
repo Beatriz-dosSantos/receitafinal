@@ -1,44 +1,67 @@
-import React, { useEffect, useState } from 'react';
+// Arquivo: app/(tabs)/index.tsx
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TextInput,
+  FlatList,
   StyleSheet,
   ActivityIndicator,
+  Image,
   TouchableOpacity,
 } from 'react-native';
+import { Recipe } from '../types/recipe';
+import { getAllRecipes } from '../services/recipes';
 import { useRouter } from 'expo-router';
 
-import { getAllRecipes } from '../services/recipes';
-import { Recipe } from '../types/recipe';
-import RecipeCard from '../components/RecipeCard';
-
 export default function HomeScreen() {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [search, setSearch] = useState('');
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchRecipes = async () => {
+    try {
       const data = await getAllRecipes();
       setRecipes(data);
+    } catch (error) {
+      console.error('Erro ao buscar receitas:', error);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchRecipes();
   }, []);
 
-  const filteredRecipes = recipes.filter((recipe) =>
-    recipe.name.toLowerCase().includes(search.toLowerCase())
+  const filteredRecipes = recipes.filter(
+    (recipe) =>
+      recipe.nome &&
+      recipe.nome.toLowerCase().includes(search.toLowerCase())
   );
+
+  const renderItem = ({ item }: { item: Recipe }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => router.push(`/receitas/${item.id}`)}
+    >
+      {item.imagem && (
+        <Image source={{ uri: item.imagem }} style={styles.image} />
+      )}
+      <Text style={styles.title}>{item.nome}</Text>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
+    return <ActivityIndicator size="large" style={{ flex: 1 }} />;
+  }
 
   return (
     <View style={styles.container}>
       <TextInput
-        style={styles.input}
-        placeholder="Buscar receita..."
+        style={styles.search}
+        placeholder="Buscar receita"
         value={search}
         onChangeText={setSearch}
       />
@@ -50,13 +73,13 @@ export default function HomeScreen() {
         <Text style={styles.addButtonText}>+ Nova Receita</Text>
       </TouchableOpacity>
 
-      {loading ? (
-        <ActivityIndicator size="large" />
+      {filteredRecipes.length === 0 ? (
+        <Text style={styles.emptyText}>Nenhuma receita encontrada.</Text>
       ) : (
         <FlatList
           data={filteredRecipes}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RecipeCard recipe={item} />}
+          keyExtractor={(item) => item.id || item.nome}
+          renderItem={renderItem}
         />
       )}
     </View>
@@ -64,22 +87,52 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  input: {
-    backgroundColor: '#eee',
-    padding: 12,
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+  search: {
+    borderWidth: 1,
+    borderColor: '#ccc',
     borderRadius: 8,
-    marginBottom: 16,
+    padding: 8,
+    marginBottom: 12,
   },
   addButton: {
     backgroundColor: '#4CAF50',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    alignItems: 'center',
   },
   addButtonText: {
-    color: '#fff',
-    textAlign: 'center',
+    color: 'white',
+    fontSize: 16,
     fontWeight: 'bold',
+  },
+  card: {
+    backgroundColor: '#f9f9f9',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  image: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
+    color: '#888',
   },
 });

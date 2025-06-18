@@ -1,6 +1,7 @@
-export interface Recipe {
-  id: string;
-  name: string;
-  ingredients: string;
-  instructions: string;
-}
+export type Recipe = {
+  id?: string;
+  nome: string;
+  ingredientes: string;
+  preparo: string;
+  imagem?: string;
+};

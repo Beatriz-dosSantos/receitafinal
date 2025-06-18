@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,18 +10,38 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import { addRecipe } from '../services/recipes';
-import { uploadToCloudinary } from '../services/cloudinary';
+import { getRecipeById, updateRecipe } from '../../services/recipes';
+import { uploadToCloudinary } from '../../services/cloudinary';
+import { Recipe } from '../../types/recipe';
 
-export default function NovaReceita() {
+export default function EditarReceita() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [loading, setLoading] = useState(true);
   const [nome, setNome] = useState('');
   const [ingredientes, setIngredientes] = useState('');
   const [preparo, setPreparo] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const carregarReceita = async () => {
+      if (!id) return;
+      const receita = await getRecipeById(id);
+      if (receita) {
+        setNome(receita.nome);
+        setIngredientes(receita.ingredientes);
+        setPreparo(receita.preparo);
+        setOriginalImageUrl(receita.imagem || null);
+      }
+      setLoading(false);
+    };
+
+    carregarReceita();
+  }, [id]);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -34,36 +55,41 @@ export default function NovaReceita() {
     }
   };
 
-  const salvar = async () => {
-    if (!nome || !ingredientes || !preparo) {
+  const salvarEdicao = async () => {
+    if (!id || !nome || !ingredientes || !preparo) {
       Alert.alert('Erro', 'Preencha todos os campos obrigatórios.');
       return;
     }
 
     try {
-      let imageUrl = '';
-      if (imageUri) {
+      let imageUrl = originalImageUrl || '';
+
+      if (imageUri && imageUri !== originalImageUrl) {
         imageUrl = await uploadToCloudinary(imageUri);
       }
 
-      await addRecipe({
+      await updateRecipe(id, {
         nome,
         ingredientes,
         preparo,
         imagem: imageUrl,
       });
 
-      Alert.alert('Sucesso', 'Receita salva com sucesso!');
+      Alert.alert('Sucesso', 'Receita atualizada com sucesso!');
       router.push('/(tabs)/');
     } catch (error) {
-      console.error('Erro ao salvar receita:', error);
-      Alert.alert('Erro', 'Não foi possível salvar a receita.');
+      console.error('Erro ao atualizar receita:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a receita.');
     }
   };
 
+  if (loading) {
+    return <ActivityIndicator size="large" style={{ flex: 1 }} />;
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Nova Receita</Text>
+      <Text style={styles.title}>Editar Receita</Text>
 
       <TextInput
         style={styles.input}
@@ -88,14 +114,17 @@ export default function NovaReceita() {
         multiline
       />
 
-      <Button title="Selecionar imagem" onPress={pickImage} />
+      <Button title="Selecionar nova imagem" onPress={pickImage} />
 
-      {imageUri && (
-        <Image source={{ uri: imageUri }} style={styles.image} />
+      {(imageUri || originalImageUrl) && (
+        <Image
+          source={{ uri: imageUri || originalImageUrl! }}
+          style={styles.image}
+        />
       )}
 
-      <TouchableOpacity style={styles.saveButton} onPress={salvar}>
-        <Text style={styles.saveButtonText}>Salvar Receita</Text>
+      <TouchableOpacity style={styles.saveButton} onPress={salvarEdicao}>
+        <Text style={styles.saveButtonText}>Salvar Alterações</Text>
       </TouchableOpacity>
     </ScrollView>
   );

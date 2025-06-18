@@ -1,4 +1,8 @@
-import { db } from '../firebase/firebase';
+import 'react-native-get-random-values'; // necessário para uuid no Expo
+import { v4 as uuid } from 'uuid';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase/firebase';
+import * as FileSystem from 'expo-file-system';
 import {
   collection,
   addDoc,
@@ -12,52 +16,62 @@ import { Recipe } from '../types/recipe';
 
 const COLLECTION_NAME = 'receitas';
 
-// 🔍 READ – buscar todas as receitas
 export const getAllRecipes = async (): Promise<Recipe[]> => {
   const snapshot = await getDocs(collection(db, COLLECTION_NAME));
   const recipes = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as Omit<Recipe, 'id'>),
   }));
-
-  console.log('Receitas carregadas:', recipes);
   return recipes;
 };
 
-// 🔍 READ – buscar receita por ID
 export const getRecipeById = async (id: string): Promise<Recipe | null> => {
   const docRef = doc(db, COLLECTION_NAME, id);
   const docSnap = await getDoc(docRef);
 
-  if (!docSnap.exists()) {
-    console.warn('Receita não encontrada com ID:', id);
-    return null;
-  }
+  if (!docSnap.exists()) return null;
 
-  const recipe = { id: docSnap.id, ...(docSnap.data() as Omit<Recipe, 'id'>) };
-  console.log('Receita carregada por ID:', recipe);
-  return recipe;
+  return { id: docSnap.id, ...(docSnap.data() as Omit<Recipe, 'id'>) };
 };
 
-// ➕ CREATE – adicionar nova receita
 export const addRecipe = async (recipe: Omit<Recipe, 'id'>): Promise<void> => {
-  console.log('Adicionando receita:', recipe);
   await addDoc(collection(db, COLLECTION_NAME), recipe);
 };
 
-// ✏️ UPDATE – atualizar dados da receita
 export const updateRecipe = async (
   id: string,
   updated: Partial<Omit<Recipe, 'id'>>
 ): Promise<void> => {
-  console.log('Atualizando receita ID:', id, 'com:', updated);
   const docRef = doc(db, COLLECTION_NAME, id);
   await updateDoc(docRef, updated);
 };
 
-// 🗑 DELETE – deletar receita por ID
 export const deleteRecipe = async (id: string): Promise<void> => {
-  console.log('Deletando receita ID:', id);
   const docRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(docRef);
 };
+
+export async function uploadImageAsync(uri: string): Promise<string> {
+  try {
+    console.log("Fazendo upload da imagem:", uri);
+
+    const fileInfo = await FileSystem.getInfoAsync(uri);
+    if (!fileInfo.exists) {
+      throw new Error('Arquivo não encontrado: ' + uri);
+    }
+
+    const response = await fetch(uri);
+    const blob = await response.blob();
+
+    const imageRef = ref(storage, `images/${uuid()}`);
+    const snapshot = await uploadBytes(imageRef, blob);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+
+    console.log("Imagem salva em:", downloadURL);
+    return downloadURL;
+  } catch (error) {
+    console.error('Erro ao fazer upload da imagem:', error);
+    throw error;
+  }
+}
+
